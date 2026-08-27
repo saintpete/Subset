@@ -43,6 +43,15 @@ class RollUpCaptions:
         self._interim = text
         self._bump()
 
+    def promote_interim(self) -> None:
+        """Fold the pending interim into the finalized tail.
+
+        Called when a live session ends (rotation or error) so speculative
+        text already on screen survives the swap instead of vanishing.
+        """
+        if self._interim:
+            self.on_final(self._interim)
+
     def clear(self) -> None:
         if self._finals or self._interim:
             self._finals = ""

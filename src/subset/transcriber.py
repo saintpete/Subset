@@ -19,6 +19,13 @@ from subset.config import HARD_ROTATE_S, ROTATE_AFTER_S, redact
 _SILENCE_RMS = 0.006
 _SILENT_CHUNKS = 5
 
+# Hybrid VAD: after speech, ~400 ms of quiet triggers audio_stream_end so the
+# server finalizes at natural breaths instead of waiting for long silences
+# (which continuous programming never provides). Rate-limited so a long quiet
+# stretch sends only one.
+_BREATH_CHUNKS = 4
+_MIN_END_INTERVAL_S = 2.0
+
 
 class LiveTranscriber:
     def __init__(
@@ -28,12 +35,18 @@ class LiveTranscriber:
         on_interim: Callable[[str], None],
         on_final: Callable[[str], None],
         on_status: Callable[[str], None],
+        on_session_end: Callable[[], None] | None = None,
     ) -> None:
         self._client = genai.Client(api_key=api_key)
         self._model = model
         self._on_interim = on_interim
         self._on_final = on_final
         self._status = on_status
+        self._on_session_end = on_session_end
+        self._stream_end_unsupported = False
+        # Capture timestamp of the newest audio chunk actually sent —
+        # lets the app estimate transcription turnaround.
+        self.last_sent_capture: float | None = None
 
     def _config(self) -> types.LiveConnectConfig:
         try:
@@ -66,10 +79,12 @@ class LiveTranscriber:
             receiver = asyncio.create_task(self._receive(session))
             started = time.monotonic()
             silent_run = 0
+            spoke = False
+            last_end = 0.0
             try:
                 while True:
                     try:
-                        pcm, rms = await asyncio.wait_for(queue.get(), timeout=5.0)
+                        pcm, rms, captured = await asyncio.wait_for(queue.get(), timeout=5.0)
                     except TimeoutError:
                         # No audio for 5s. Don't sit wedged: surface receiver
                         # death, and rotate rather than letting the server
@@ -88,10 +103,24 @@ class LiveTranscriber:
                     await session.send_realtime_input(
                         audio=types.Blob(data=pcm, mime_type="audio/pcm;rate=16000")
                     )
+                    self.last_sent_capture = captured
                     if receiver.done():
                         receiver.result()  # surface receive-side errors
-                    silent_run = silent_run + 1 if rms < _SILENCE_RMS else 0
-                    age = time.monotonic() - started
+                    if rms < _SILENCE_RMS:
+                        silent_run += 1
+                    else:
+                        silent_run = 0
+                        spoke = True
+                    now = time.monotonic()
+                    if (
+                        spoke
+                        and silent_run == _BREATH_CHUNKS
+                        and now - last_end >= _MIN_END_INTERVAL_S
+                    ):
+                        await self._send_stream_end(session)
+                        spoke = False
+                        last_end = now
+                    age = now - started
                     if age >= HARD_ROTATE_S or (
                         age >= ROTATE_AFTER_S and silent_run >= _SILENT_CHUNKS
                     ):
@@ -102,6 +131,20 @@ class LiveTranscriber:
                 receiver.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await receiver
+                if self._on_session_end is not None:
+                    self._on_session_end()
+
+    async def _send_stream_end(self, session) -> None:
+        """Nudge the server to finalize the current utterance (hybrid VAD)."""
+        if self._stream_end_unsupported:
+            return
+        try:
+            await session.send_realtime_input(audio_stream_end=True)
+        except TypeError:
+            self._stream_end_unsupported = True
+            self._status(
+                "SDK doesn't support audio_stream_end — finals only at long pauses"
+            )
 
     async def _receive(self, session) -> None:
         async for response in session.receive():

@@ -118,9 +118,9 @@ class AudioCapture:
             del self._pending[: self._chunk_bytes]
             samples = np.frombuffer(chunk, dtype="<i2").astype(np.float32) / 32768.0
             rms = float(np.sqrt(np.mean(np.square(samples))))
-            self._loop.call_soon_threadsafe(self._enqueue, (chunk, rms))
+            self._loop.call_soon_threadsafe(self._enqueue, (chunk, rms, time.monotonic()))
 
-    def _enqueue(self, item: tuple[bytes, float]) -> None:
+    def _enqueue(self, item: tuple[bytes, float, float]) -> None:
         # If the consumer stalls (e.g. a reconnect), drop the oldest audio
         # rather than building an ever-growing caption lag.
         if self._queue.full():

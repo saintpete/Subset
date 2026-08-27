@@ -42,17 +42,38 @@ async def _run(args: argparse.Namespace) -> None:
     api_key = config.load_api_key(args.key_file)
     captions = RollUpCaptions(max_lines=args.max_lines, max_chars=args.max_chars)
 
+    t0 = time.monotonic()
+    lag_stats: dict[str, list[float]] = {"interim": [], "final": []}
+
+    def elapsed() -> str:
+        return f"{time.monotonic() - t0:7.1f}s"
+
     def status(message: str) -> None:
-        print(f"[subset] {message}", flush=True)
+        print(f"[subset {elapsed()}] {message}", flush=True)
+
+    def track_lag(kind: str) -> float | None:
+        # Turnaround: age of the newest audio we had sent when this
+        # transcript arrived — a lower bound on speech→caption delay.
+        sent = transcriber.last_sent_capture
+        if sent is None:
+            return None
+        lag = time.monotonic() - sent
+        lag_stats[kind].append(lag)
+        return lag
 
     def on_final(text: str) -> None:
         captions.on_final(text)
-        print(f"  » {text}", flush=True)
+        lag = track_lag("final")
+        print(f"  [{elapsed()}] » ({lag or 0:.2f}s) {text}", flush=True)
 
     def on_interim(text: str) -> None:
         captions.on_interim(text)
+        lag = track_lag("interim")
         if args.verbose:
-            print(f"  … {text}", flush=True)
+            print(
+                f"  [{elapsed()}] … ({lag or 0:.2f}s, {len(text)}ch) …{text[-70:]}",
+                flush=True,
+            )
 
     obs = None
     if not args.no_obs:
@@ -69,7 +90,14 @@ async def _run(args: argparse.Namespace) -> None:
     capture.start()
     status(f"capturing audio from '{capture.device_name}'")
 
-    transcriber = LiveTranscriber(api_key, args.model, on_interim, on_final, status)
+    transcriber = LiveTranscriber(
+        api_key,
+        args.model,
+        on_interim,
+        on_final,
+        status,
+        on_session_end=captions.promote_interim,
+    )
 
     async def pusher() -> None:
         pushed_version = -1
@@ -105,10 +133,27 @@ async def _run(args: argparse.Namespace) -> None:
                 except Exception as exc:
                     status(f"audio reopen failed: {redact(exc)} — will retry")
 
+    async def stats_reporter() -> None:
+        while True:
+            await asyncio.sleep(10)
+            parts = [f"send backlog {queue.qsize() * 0.1:.1f}s"]
+            for kind in ("interim", "final"):
+                lags = lag_stats[kind]
+                if lags:
+                    parts.append(
+                        f"{kind}s {len(lags) / 10:.1f}/s, turnaround "
+                        f"avg {sum(lags) / len(lags):.2f}s max {max(lags):.2f}s"
+                    )
+                else:
+                    parts.append(f"{kind}s none")
+                lag_stats[kind] = []
+            status(" | ".join(parts))
+
     tasks = [
         asyncio.create_task(transcriber.run(queue)),
         asyncio.create_task(pusher()),
         asyncio.create_task(audio_watchdog()),
+        asyncio.create_task(stats_reporter()),
     ]
     try:
         gathered = asyncio.gather(*tasks)
