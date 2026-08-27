@@ -6,6 +6,8 @@ from pathlib import Path
 
 DEFAULT_MODEL = "gemini-3.5-transcribe-live"
 DEFAULT_KEY_FILE = "gemini-key.txt"
+DEFAULT_DEEPGRAM_MODEL = "nova-3"
+DEFAULT_DEEPGRAM_KEY_FILE = "deepgram-key.txt"
 DEFAULT_VIDEO_DEVICE = "USB3.0 Video"
 DEFAULT_AUDIO_DEVICE = "USB3.0 Audio"
 DEFAULT_OBS_URL = "ws://127.0.0.1:4455"

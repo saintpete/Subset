@@ -31,7 +31,7 @@ _MIN_END_INTERVAL_S = 2.0
 _STARVE_CHUNKS = 150
 
 
-class LiveTranscriber:
+class GeminiTranscriber:
     def __init__(
         self,
         api_key: str,

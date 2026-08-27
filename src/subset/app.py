@@ -25,8 +25,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--verbose", action="store_true", help="also print interim hypotheses")
     parser.add_argument("--audio-device", default=config.DEFAULT_AUDIO_DEVICE)
     parser.add_argument("--video-device", default=config.DEFAULT_VIDEO_DEVICE)
-    parser.add_argument("--model", default=config.DEFAULT_MODEL)
-    parser.add_argument("--key-file", default=config.DEFAULT_KEY_FILE)
+    parser.add_argument(
+        "--engine",
+        choices=("gemini", "deepgram"),
+        default=os.environ.get("SUBSET_ENGINE", "gemini"),
+        help="transcription backend (or set SUBSET_ENGINE)",
+    )
+    parser.add_argument("--model", default=None, help="model id (engine default if omitted)")
+    parser.add_argument("--key-file", default=None, help="key file (engine default if omitted)")
     parser.add_argument("--obs-url", default=os.environ.get("OBS_WS_URL", config.DEFAULT_OBS_URL))
     parser.add_argument("--obs-password", default=None, help="defaults to $OBS_WS_PASSWORD")
     parser.add_argument("--font-size", type=int, default=56)
@@ -37,9 +43,19 @@ def _parse_args() -> argparse.Namespace:
 
 async def _run(args: argparse.Namespace) -> None:
     from subset.audio import AudioCapture
-    from subset.transcriber import LiveTranscriber
 
-    api_key = config.load_api_key(args.key_file)
+    if args.engine == "deepgram":
+        from subset.deepgram import DeepgramTranscriber as TranscriberCls
+
+        model = args.model or config.DEFAULT_DEEPGRAM_MODEL
+        key_file = args.key_file or config.DEFAULT_DEEPGRAM_KEY_FILE
+    else:
+        from subset.transcriber import GeminiTranscriber as TranscriberCls
+
+        model = args.model or config.DEFAULT_MODEL
+        key_file = args.key_file or config.DEFAULT_KEY_FILE
+
+    api_key = config.load_api_key(key_file)
     captions = RollUpCaptions(max_lines=args.max_lines, max_chars=args.max_chars)
 
     t0 = time.monotonic()
@@ -90,14 +106,15 @@ async def _run(args: argparse.Namespace) -> None:
     capture.start()
     status(f"capturing audio from '{capture.device_name}'")
 
-    transcriber = LiveTranscriber(
+    transcriber = TranscriberCls(
         api_key,
-        args.model,
+        model,
         on_interim,
         on_final,
         status,
         on_session_end=captions.promote_interim,
     )
+    status(f"engine: {args.engine} ({model})")
 
     async def pusher() -> None:
         pushed_version = -1

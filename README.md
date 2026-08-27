@@ -40,8 +40,11 @@ a UVC HDMI capture card, and a Gemini API key.
 uv sync
 ```
 
-Put your Gemini API key in `gemini-key.txt` at the repo root (git-ignored; the
-bare key or the pasted AI Studio export block both work). Enable OBS's WebSocket
+Two transcription engines are supported: **Gemini** (`gemini-3.5-transcribe-live`,
+the default) and **Deepgram** (`nova-3`) — select with `--engine` or the
+`SUBSET_ENGINE` env var. Put the Gemini key in `gemini-key.txt` and/or the
+Deepgram key in `deepgram-key.txt` at the repo root (`*-key.txt` is git-ignored;
+a bare key or a pasted console export block both work). Enable OBS's WebSocket
 server (Tools → WebSocket Server Settings) and put its password in `.env` as
 `OBS_WS_PASSWORD=…` (also git-ignored).
 
@@ -55,8 +58,9 @@ overlay. No manual scene assembly.
 uv run subset
 ```
 
-Useful flags: `--list-devices` (show audio inputs), `--no-obs` (transcribe to
-stdout only), `--verbose` (print interim hypotheses), `--seconds N` (timed run),
+Useful flags: `--engine gemini|deepgram` (transcription backend),
+`--list-devices` (show audio inputs), `--no-obs` (transcribe to stdout only),
+`--verbose` (print interim hypotheses with turnaround), `--seconds N` (timed run),
 `--audio-device` / `--video-device` (substring match, default `USB3.0 …`),
 `--font-size`, `--max-lines`, `--max-chars`.
 
