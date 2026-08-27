@@ -26,6 +26,10 @@ _SILENT_CHUNKS = 5
 _BREATH_CHUNKS = 4
 _MIN_END_INTERVAL_S = 2.0
 
+# If this many speech-bearing chunks (~15s) stream out with zero transcripts
+# back, assume the session landed on a congested backend and recycle it.
+_STARVE_CHUNKS = 150
+
 
 class LiveTranscriber:
     def __init__(
@@ -78,6 +82,9 @@ class LiveTranscriber:
             self._status("Gemini live session open")
             receiver = asyncio.create_task(self._receive(session))
             started = time.monotonic()
+            self._last_transcript = started
+            seen_transcript = started
+            speechy = 0
             silent_run = 0
             spoke = False
             last_end = 0.0
@@ -106,6 +113,17 @@ class LiveTranscriber:
                     self.last_sent_capture = captured
                     if receiver.done():
                         receiver.result()  # surface receive-side errors
+                    if self._last_transcript != seen_transcript:
+                        seen_transcript = self._last_transcript
+                        speechy = 0
+                    if rms >= _SILENCE_RMS:
+                        speechy += 1
+                    if speechy >= _STARVE_CHUNKS:
+                        self._status(
+                            "speech flowing but no transcripts for ~15s — "
+                            "recycling session (service may be congested)"
+                        )
+                        break
                     if rms < _SILENCE_RMS:
                         silent_run += 1
                     else:
@@ -153,7 +171,9 @@ class LiveTranscriber:
                 continue
             interim = getattr(content, "interim_input_transcription", None)
             if interim is not None and getattr(interim, "text", None):
+                self._last_transcript = time.monotonic()
                 self._on_interim(interim.text)
             final = getattr(content, "input_transcription", None)
             if final is not None and getattr(final, "text", None):
+                self._last_transcript = time.monotonic()
                 self._on_final(final.text)
