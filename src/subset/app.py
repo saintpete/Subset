@@ -26,6 +26,20 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--audio-device", default=config.DEFAULT_AUDIO_DEVICE)
     parser.add_argument("--video-device", default=config.DEFAULT_VIDEO_DEVICE)
     parser.add_argument(
+        "--audio-out",
+        default=None,
+        metavar="DEVICE",
+        help="play the show's audio directly to this output device (name "
+        "substring, e.g. your TV) instead of OBS monitoring — fixes the "
+        "rare clock-drift blips of OBS's monitoring path",
+    )
+    parser.add_argument(
+        "--audio-out-buffer-ms",
+        type=int,
+        default=100,
+        help="passthrough target buffer depth (latency vs resilience)",
+    )
+    parser.add_argument(
         "--engine",
         choices=("gemini", "deepgram"),
         default=os.environ.get("SUBSET_ENGINE", "gemini"),
@@ -98,7 +112,11 @@ async def _run(args: argparse.Namespace) -> None:
         obs = ObsCaptioner(args.obs_url, args.obs_password or os.environ.get("OBS_WS_PASSWORD"))
         await obs.connect()
         await obs.ensure_scene(
-            args.video_device, args.audio_device, args.font_size, args.max_lines
+            args.video_device,
+            args.audio_device,
+            args.font_size,
+            args.max_lines,
+            monitor_audio=args.audio_out is None,
         )
         status("OBS scene 'Subset' ready")
 
@@ -107,6 +125,16 @@ async def _run(args: argparse.Namespace) -> None:
     capture = AudioCapture(args.audio_device, loop, queue)
     capture.start()
     status(f"capturing audio from '{capture.device_name}'")
+
+    passthrough = None
+    if args.audio_out:
+        from subset.passthrough import AudioPassthrough
+
+        passthrough = AudioPassthrough(
+            args.audio_device, args.audio_out, args.audio_out_buffer_ms, on_status=status
+        )
+        passthrough.start()
+        status(f"audio passthrough → '{passthrough.output_name}' (OBS monitoring off)")
 
     transcriber = TranscriberCls(
         api_key,
@@ -151,11 +179,19 @@ async def _run(args: argparse.Namespace) -> None:
                     status(f"capturing audio from '{capture.device_name}'")
                 except Exception as exc:
                     status(f"audio reopen failed: {redact(exc)} — will retry")
+            if passthrough is not None and passthrough.stalled():
+                status("audio passthrough stalled — reopening streams")
+                try:
+                    passthrough.reopen()
+                except Exception as exc:
+                    status(f"passthrough reopen failed: {redact(exc)} — will retry")
 
     async def stats_reporter() -> None:
         while True:
             await asyncio.sleep(10)
             parts = [f"send backlog {queue.qsize() * 0.1:.1f}s"]
+            if passthrough is not None:
+                parts.append(passthrough.stats())
             for kind in ("interim", "final"):
                 lags = lag_stats[kind]
                 if lags:
@@ -188,6 +224,8 @@ async def _run(args: argparse.Namespace) -> None:
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await asyncio.gather(*tasks)
         capture.stop()
+        if passthrough is not None:
+            passthrough.stop()
         if obs is not None:
             with contextlib.suppress(Exception):
                 await obs.set_text("")

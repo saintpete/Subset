@@ -65,6 +65,15 @@ Three causes we've met, in order of likelihood:
 2. Sample-rate mismatch: OBS and all devices should be at 48 kHz (check
    Audio MIDI Setup).
 3. OBS's "Low Latency Audio Buffering Mode" is checked. Uncheck it.
+4. If rare blips persist after all of the above, it's clock drift inside
+   OBS's monitoring path itself — the source's audio clock and the Mac's
+   output clock are physically independent, and OBS bridges them with
+   blind buffer slips. Bypass monitoring entirely: run with
+   `--audio-out "<TV device name>"` and the app plays audio to the TV
+   through a drift-compensating buffer that corrects only during silent
+   moments. The stats line gains a `passthrough depth/trims/underruns`
+   field; occasional trims are normal and inaudible, and a device that
+   causes underruns automatically earns a deeper buffer.
 
 **Captions reference words you can't hear.**
 Your TV volume is just low — the card taps the source's full-level audio

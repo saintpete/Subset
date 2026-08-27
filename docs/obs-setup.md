@@ -49,7 +49,8 @@ Settings → Audio → Advanced:
 
 - **Monitoring Device: your TV's HDMI audio output** (it appears once the TV
   is connected as a display). This is the path the show's sound takes to the
-  TV.
+  TV. *(Skip this if you run Subset with `--audio-out` — the app then plays
+  audio to the TV itself and switches the source's monitoring off.)*
 - Leave **Low Latency Audio Buffering Mode unchecked** — it shrinks buffers
   and causes dropouts with capture-card sources.
 
@@ -61,7 +62,7 @@ and creates (or repairs) a scene named **Subset**:
 | Item | What it is | Settings applied |
 |---|---|---|
 | `Subset Video` | the capture card's video | device matched by name, buffering off, scaled to fit the canvas |
-| `Subset Audio` | the capture card's audio | device matched by name, **monitor only** (plays to the monitoring device, i.e. the TV) |
+| `Subset Audio` | the capture card's audio | device matched by name, **monitor only** (plays to the monitoring device, i.e. the TV); monitoring off when `--audio-out` is active |
 | `Subset Caption Line 1..N` | one text source per caption line | Helvetica Neue Bold, white, drop shadow, centered on the canvas |
 
 Don't rename these inputs — the app finds them by name on every start (and

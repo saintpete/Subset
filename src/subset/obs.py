@@ -84,9 +84,14 @@ class ObsCaptioner:
     # -- scene construction -------------------------------------------------
 
     async def ensure_scene(
-        self, video_substr: str, audio_substr: str, font_size: int, max_lines: int
+        self,
+        video_substr: str,
+        audio_substr: str,
+        font_size: int,
+        max_lines: int,
+        monitor_audio: bool = True,
     ) -> None:
-        self._ensure_args = (video_substr, audio_substr, font_size, max_lines)
+        self._ensure_args = (video_substr, audio_substr, font_size, max_lines, monitor_audio)
         kinds = (await self.call("GetInputKindList"))["inputKinds"]
         await self.call(
             "SetVideoSettings",
@@ -142,9 +147,14 @@ class ObsCaptioner:
                 "SetInputSettings",
                 {"inputName": AUDIO_INPUT, "inputSettings": {prop: value}, "overlay": True},
             )
+        monitor_type = (
+            "OBS_MONITORING_TYPE_MONITOR_ONLY"
+            if monitor_audio
+            else "OBS_MONITORING_TYPE_NONE"  # app-level passthrough owns audio
+        )
         await self.call(
             "SetInputAudioMonitorType",
-            {"inputName": AUDIO_INPUT, "monitorType": "OBS_MONITORING_TYPE_MONITOR_ONLY"},
+            {"inputName": AUDIO_INPUT, "monitorType": monitor_type},
         )
 
         for legacy in _LEGACY_INPUTS:
