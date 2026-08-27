@@ -66,7 +66,8 @@ class AudioCapture:
         self._queue = queue
         self._device_substr = device_substr
         self._in_rate = in_rate
-        self._chunk_ms = chunk_ms
+        self._chunk_bytes = out_rate * chunk_ms // 1000 * 2  # s16 mono
+        self._pending = bytearray()
         self._decimator = _Decimator(in_rate // out_rate)
         self._last_cb = time.monotonic()
         self._stream = self._open_stream()
@@ -77,12 +78,17 @@ class AudioCapture:
         device = find_input_device(self._device_substr)
         info = sd.query_devices(device)
         self.device_name = info["name"]
+        # blocksize=0 lets Core Audio keep its native small buffers. The
+        # device buffer is shared across ALL clients — forcing a big block
+        # here degrades OBS's capture of the same card into bursty
+        # deliveries, which makes its TV monitoring hiccup. We accumulate
+        # to Gemini-sized chunks ourselves in the callback.
         return sd.InputStream(
             device=device,
             channels=min(2, int(info["max_input_channels"])),
             samplerate=self._in_rate,
             dtype="float32",
-            blocksize=self._in_rate * self._chunk_ms // 1000,
+            blocksize=0,
             callback=self._callback,
         )
 
@@ -95,6 +101,7 @@ class AudioCapture:
         with contextlib.suppress(Exception):
             self._stream.stop()
             self._stream.close()
+        self._pending.clear()
         self._stream = self._open_stream()
         self._stream.start()
         self._last_cb = time.monotonic()
@@ -105,9 +112,13 @@ class AudioCapture:
         out = self._decimator.process(mono.astype(np.float32))
         if not len(out):
             return
-        rms = float(np.sqrt(np.mean(np.square(out))))
-        pcm = (np.clip(out, -1.0, 1.0) * 32767).astype("<i2").tobytes()
-        self._loop.call_soon_threadsafe(self._enqueue, (pcm, rms))
+        self._pending += (np.clip(out, -1.0, 1.0) * 32767).astype("<i2").tobytes()
+        while len(self._pending) >= self._chunk_bytes:
+            chunk = bytes(self._pending[: self._chunk_bytes])
+            del self._pending[: self._chunk_bytes]
+            samples = np.frombuffer(chunk, dtype="<i2").astype(np.float32) / 32768.0
+            rms = float(np.sqrt(np.mean(np.square(samples))))
+            self._loop.call_soon_threadsafe(self._enqueue, (chunk, rms))
 
     def _enqueue(self, item: tuple[bytes, float]) -> None:
         # If the consumer stalls (e.g. a reconnect), drop the oldest audio
