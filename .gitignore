@@ -1,0 +1,12 @@
+# Secrets — never commit
+gemini-key.txt
+.env
+.env.*
+
+# Python
+__pycache__/
+.venv/
+*.pyc
+
+# macOS
+.DS_Store
