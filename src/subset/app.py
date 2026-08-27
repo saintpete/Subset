@@ -77,12 +77,39 @@ async def _run(args: argparse.Namespace) -> None:
             await asyncio.sleep(_PUSH_INTERVAL_S)
             if not captions.empty and time.monotonic() - captions.last_activity > _STALE_S:
                 captions.clear()
-            if captions.version != pushed_version:
+            if captions.version == pushed_version:
+                continue
+            if obs is None:
                 pushed_version = captions.version
-                if obs is not None:
-                    await obs.set_text(captions.render())
+                continue
+            try:
+                await obs.set_text(captions.render())
+                pushed_version = captions.version
+            except Exception:
+                status("lost OBS — reconnecting (transcription keeps running)")
+                await asyncio.sleep(2)
+                with contextlib.suppress(Exception):
+                    await obs.reconnect_and_repair()
+                    status("OBS reconnected")
 
-    tasks = [asyncio.create_task(transcriber.run(queue)), asyncio.create_task(pusher())]
+    async def audio_watchdog() -> None:
+        # Display hot-plugs churn the Core Audio device list, which can kill
+        # the input stream while the process looks healthy. Self-heal.
+        while True:
+            await asyncio.sleep(3)
+            if capture.last_audio_age() > 6:
+                status("audio input stalled — reopening capture device")
+                try:
+                    capture.reopen()
+                    status(f"capturing audio from '{capture.device_name}'")
+                except Exception as exc:
+                    status(f"audio reopen failed: {redact(exc)} — will retry")
+
+    tasks = [
+        asyncio.create_task(transcriber.run(queue)),
+        asyncio.create_task(pusher()),
+        asyncio.create_task(audio_watchdog()),
+    ]
     try:
         gathered = asyncio.gather(*tasks)
         if args.seconds:

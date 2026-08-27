@@ -68,7 +68,19 @@ class LiveTranscriber:
             silent_run = 0
             try:
                 while True:
-                    pcm, rms = await queue.get()
+                    try:
+                        pcm, rms = await asyncio.wait_for(queue.get(), timeout=5.0)
+                    except TimeoutError:
+                        # No audio for 5s. Don't sit wedged: surface receiver
+                        # death, and rotate rather than letting the server
+                        # kill an idle session at the 10-minute cap.
+                        if receiver.done():
+                            receiver.result()
+                            raise RuntimeError("Gemini receive loop ended")
+                        if time.monotonic() - started >= ROTATE_AFTER_S:
+                            self._status("rotating idle live session")
+                            break
+                        continue
                     if not hasattr(session, "send_realtime_input"):
                         raise RuntimeError(
                             "google-genai SDK lacks send_realtime_input — run `uv sync -U`"

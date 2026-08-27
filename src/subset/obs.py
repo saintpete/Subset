@@ -6,6 +6,7 @@ caption backdrop band, and the caption text source this app updates.
 """
 
 import asyncio
+import contextlib
 
 import simpleobsws
 
@@ -26,7 +27,20 @@ _TEXT_COLOR = 0xFFFFFFFF
 
 class ObsCaptioner:
     def __init__(self, url: str, password: str | None) -> None:
-        self._ws = simpleobsws.WebSocketClient(url=url, password=password or None)
+        self._url = url
+        self._password = password or None
+        self._ensure_args: tuple | None = None
+        self._ws = simpleobsws.WebSocketClient(url=url, password=self._password)
+
+    async def reconnect_and_repair(self) -> None:
+        """After an OBS restart: fresh socket, then re-assert the scene."""
+        with contextlib.suppress(Exception):
+            await self._ws.disconnect()
+        self._ws = simpleobsws.WebSocketClient(url=self._url, password=self._password)
+        await self._ws.connect()
+        await self._ws.wait_until_identified()
+        if self._ensure_args is not None:
+            await self.ensure_scene(*self._ensure_args)
 
     async def connect(self, attempts: int = 5) -> None:
         last: Exception | None = None
@@ -61,6 +75,7 @@ class ObsCaptioner:
     # -- scene construction -------------------------------------------------
 
     async def ensure_scene(self, video_substr: str, audio_substr: str, font_size: int) -> None:
+        self._ensure_args = (video_substr, audio_substr, font_size)
         kinds = (await self.call("GetInputKindList"))["inputKinds"]
         await self.call(
             "SetVideoSettings",

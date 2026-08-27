@@ -7,6 +7,8 @@ does the job without any DSP dependency.
 """
 
 import asyncio
+import contextlib
+import time
 
 import numpy as np
 import sounddevice as sd
@@ -62,20 +64,43 @@ class AudioCapture:
     ) -> None:
         self._loop = loop
         self._queue = queue
+        self._device_substr = device_substr
+        self._in_rate = in_rate
+        self._chunk_ms = chunk_ms
         self._decimator = _Decimator(in_rate // out_rate)
-        device = find_input_device(device_substr)
-        channels = min(2, int(sd.query_devices(device)["max_input_channels"]))
-        self.device_name = sd.query_devices(device)["name"]
-        self._stream = sd.InputStream(
+        self._last_cb = time.monotonic()
+        self._stream = self._open_stream()
+
+    def _open_stream(self) -> sd.InputStream:
+        # Re-resolve the device by name every time: Core Audio *indices*
+        # shift whenever displays or other audio hardware come and go.
+        device = find_input_device(self._device_substr)
+        info = sd.query_devices(device)
+        self.device_name = info["name"]
+        return sd.InputStream(
             device=device,
-            channels=channels,
-            samplerate=in_rate,
+            channels=min(2, int(info["max_input_channels"])),
+            samplerate=self._in_rate,
             dtype="float32",
-            blocksize=in_rate * chunk_ms // 1000,
+            blocksize=self._in_rate * self._chunk_ms // 1000,
             callback=self._callback,
         )
 
+    def last_audio_age(self) -> float:
+        """Seconds since the capture callback last delivered audio."""
+        return time.monotonic() - self._last_cb
+
+    def reopen(self) -> None:
+        """Tear down and rebuild the stream after a device-churn stall."""
+        with contextlib.suppress(Exception):
+            self._stream.stop()
+            self._stream.close()
+        self._stream = self._open_stream()
+        self._stream.start()
+        self._last_cb = time.monotonic()
+
     def _callback(self, indata: np.ndarray, frames: int, time_info, status) -> None:
+        self._last_cb = time.monotonic()
         mono = indata.mean(axis=1) if indata.ndim == 2 else indata
         out = self._decimator.process(mono.astype(np.float32))
         if not len(out):
