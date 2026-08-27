@@ -97,7 +97,9 @@ async def _run(args: argparse.Namespace) -> None:
 
         obs = ObsCaptioner(args.obs_url, args.obs_password or os.environ.get("OBS_WS_PASSWORD"))
         await obs.connect()
-        await obs.ensure_scene(args.video_device, args.audio_device, args.font_size)
+        await obs.ensure_scene(
+            args.video_device, args.audio_device, args.font_size, args.max_lines
+        )
         status("OBS scene 'Subset' ready")
 
     loop = asyncio.get_running_loop()

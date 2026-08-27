@@ -1,8 +1,11 @@
 """OBS control over obs-websocket 5.x.
 
-Builds (idempotently) a "Subset" scene containing the capture card's
-video, its audio set to monitor-only (so the TV hears the show), a
-caption backdrop band, and the caption text source this app updates.
+Builds (idempotently) a "Subset" scene: the capture card's video, its
+audio set to monitor-only (so the TV hears the show), and Netflix-style
+captions — white bold text with a drop shadow, no background band, each
+line center-aligned. FreeType can't center multi-line text, so every
+caption line is its own text source anchored to the canvas centerline;
+set_text() distributes wrapped lines across them, bottom-up.
 """
 
 import asyncio
@@ -13,15 +16,15 @@ import simpleobsws
 SCENE = "Subset"
 VIDEO_INPUT = "Subset Video"
 AUDIO_INPUT = "Subset Audio"
-BACKDROP_INPUT = "Subset Caption Backdrop"
-TEXT_INPUT = "Subset Captions"
+TEXT_PREFIX = "Subset Caption Line"
+
+# Inputs from earlier scene layouts, removed on sight.
+_LEGACY_INPUTS = ("Subset Captions", "Subset Caption Backdrop")
 
 CANVAS_W, CANVAS_H = 1920, 1080
-CAPTION_W = 1760
-BACKDROP_H = 170
+_BOTTOM_MARGIN = 80  # gap under the last caption line, Netflix-ish
 
 # OBS stores colors as 0xAABBGGRR ints.
-_BACKDROP_COLOR = 0x99000000  # black, ~60% opaque
 _TEXT_COLOR = 0xFFFFFFFF
 
 
@@ -30,6 +33,7 @@ class ObsCaptioner:
         self._url = url
         self._password = password or None
         self._ensure_args: tuple | None = None
+        self._lines: list[str] = []
         self._ws = simpleobsws.WebSocketClient(url=url, password=self._password)
 
     async def reconnect_and_repair(self) -> None:
@@ -67,15 +71,22 @@ class ObsCaptioner:
         return resp.responseData or {}
 
     async def set_text(self, text: str) -> None:
-        await self.call(
-            "SetInputSettings",
-            {"inputName": TEXT_INPUT, "inputSettings": {"text": text}, "overlay": True},
-        )
+        """Distribute wrapped lines across the per-line sources, bottom-up."""
+        lines = [line for line in text.split("\n") if line] if text else []
+        lines = lines[-len(self._lines) :]
+        padded = [""] * (len(self._lines) - len(lines)) + lines
+        for name, line in zip(self._lines, padded):
+            await self.call(
+                "SetInputSettings",
+                {"inputName": name, "inputSettings": {"text": line}, "overlay": True},
+            )
 
     # -- scene construction -------------------------------------------------
 
-    async def ensure_scene(self, video_substr: str, audio_substr: str, font_size: int) -> None:
-        self._ensure_args = (video_substr, audio_substr, font_size)
+    async def ensure_scene(
+        self, video_substr: str, audio_substr: str, font_size: int, max_lines: int
+    ) -> None:
+        self._ensure_args = (video_substr, audio_substr, font_size, max_lines)
         kinds = (await self.call("GetInputKindList"))["inputKinds"]
         await self.call(
             "SetVideoSettings",
@@ -136,46 +147,40 @@ class ObsCaptioner:
             {"inputName": AUDIO_INPUT, "monitorType": "OBS_MONITORING_TYPE_MONITOR_ONLY"},
         )
 
-        backdrop_kind = self._pick_kind(kinds, ["color_source_v3", "color_source"])
-        if BACKDROP_INPUT not in inputs:
-            await self.call(
-                "CreateInput",
-                {
-                    "sceneName": SCENE,
-                    "inputName": BACKDROP_INPUT,
-                    "inputKind": backdrop_kind,
-                    "inputSettings": {
-                        "color": _BACKDROP_COLOR,
-                        "width": CANVAS_W,
-                        "height": BACKDROP_H,
-                    },
-                },
-            )
+        for legacy in _LEGACY_INPUTS:
+            with contextlib.suppress(RuntimeError):
+                await self.call("RemoveInput", {"inputName": legacy})
 
         text_kind = self._pick_kind(kinds, ["text_ft2_source_v2", "text_ft2_source"])
-        if TEXT_INPUT not in inputs:
+        self._lines = [f"{TEXT_PREFIX} {i + 1}" for i in range(max_lines)]
+        for name in self._lines:
+            if name in inputs:
+                continue
             await self.call(
                 "CreateInput",
                 {
                     "sceneName": SCENE,
-                    "inputName": TEXT_INPUT,
+                    "inputName": name,
                     "inputKind": text_kind,
                     "inputSettings": {
-                        "font": {"face": "Helvetica", "style": "Bold", "size": font_size},
+                        "font": {
+                            "face": "Helvetica Neue",
+                            "style": "Bold",
+                            "size": font_size,
+                        },
                         "color1": _TEXT_COLOR,
                         "color2": _TEXT_COLOR,
-                        "outline": True,
-                        "word_wrap": True,
-                        "custom_width": CAPTION_W,
+                        "outline": False,
+                        "drop_shadow": True,
                         "text": "",
                     },
                 },
             )
 
-        await self._layout()
+        await self._layout(font_size, max_lines)
         await self.call("SetCurrentProgramScene", {"sceneName": SCENE})
 
-    async def _layout(self) -> None:
+    async def _layout(self, font_size: int, max_lines: int) -> None:
         async def place(source: str, transform: dict, index: int) -> None:
             item = await self.call(
                 "GetSceneItemId", {"sceneName": SCENE, "sourceName": source}
@@ -202,20 +207,18 @@ class ObsCaptioner:
             },
             0,
         )
-        await place(
-            BACKDROP_INPUT,
-            {"positionX": 0, "positionY": CANVAS_H - BACKDROP_H - 20, "alignment": 5},
-            1,
-        )
-        await place(
-            TEXT_INPUT,
-            {
-                "positionX": (CANVAS_W - CAPTION_W) / 2,
-                "positionY": CANVAS_H - BACKDROP_H - 5,
-                "alignment": 5,  # top-left anchor
-            },
-            2,
-        )
+        line_height = round(font_size * 1.3)
+        base_y = CANVAS_H - _BOTTOM_MARGIN - line_height * max_lines
+        for i, name in enumerate(self._lines):
+            await place(
+                name,
+                {
+                    "positionX": CANVAS_W / 2,
+                    "positionY": base_y + i * line_height,
+                    "alignment": 4,  # anchor: top edge, horizontally centered
+                },
+                i + 1,
+            )
 
     @staticmethod
     def _pick_kind(kinds: list[str], candidates: list[str]) -> str:
