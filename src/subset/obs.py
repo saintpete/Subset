@@ -156,6 +156,11 @@ class ObsCaptioner:
             "SetInputAudioMonitorType",
             {"inputName": AUDIO_INPUT, "monitorType": monitor_type},
         )
+        # A stray click on the mixer's speaker icon silently kills TV audio;
+        # assert the working state on every startup.
+        await self.call(
+            "SetInputMute", {"inputName": AUDIO_INPUT, "inputMuted": False}
+        )
 
         for legacy in _LEGACY_INPUTS:
             with contextlib.suppress(RuntimeError):
