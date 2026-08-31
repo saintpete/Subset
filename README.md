@@ -58,7 +58,7 @@ OBS audio monitoring.
 ## What I used
 
 Nothing here is sacred — swap in equivalents freely (any UVC capture card,
-any HDMI source, any Mac that runs OBS):
+any HDMI source, any computer that runs OBS):
 
 - A MacBook Pro (Apple Silicon, macOS 15)
 - A generic UVC HDMI→USB3 capture card (a MacroSilicon **MS2130** stick
