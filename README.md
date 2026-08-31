@@ -2,6 +2,11 @@
 
 **Offset subtitles that don't spoil everything.**
 
+<p align="center">
+  <img src="docs/before-after.svg" width="100%"
+       alt="Before and after. Without Subset: the caption already reads 'The defendant was found guilty' while the judge's gavel is still raised — the verdict is spoiled. With Subset: at the same moment the caption reads only 'The defendant was found', and 'guilty' appears a beat later, just as the gavel strikes.">
+</p>
+
 Subtitles on TV shows and movies routinely appear *before* the words are
 spoken. Instead of clarifying what you just heard, they spoil what you're
 about to hear — the joke lands in text before the actor opens their mouth,

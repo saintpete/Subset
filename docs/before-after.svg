@@ -1,0 +1,130 @@
+<svg viewBox="0 0 1200 340" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title>Subset, before and after: without Subset the caption spoils the verdict before the gavel falls; with Subset the word “guilty” appears only as it is spoken.</title>
+
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#243048"/>
+      <stop offset="1" stop-color="#131a26"/>
+    </linearGradient>
+    <radialGradient id="vin" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0" stop-color="#7d95c4" stop-opacity="0.12"/>
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.38"/>
+    </radialGradient>
+    <linearGradient id="woodLip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a06a3a"/>
+      <stop offset="1" stop-color="#7a4f2b"/>
+    </linearGradient>
+    <linearGradient id="woodFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6e4526"/>
+      <stop offset="1" stop-color="#472b15"/>
+    </linearGradient>
+    <filter id="capShadow" x="-20%" y="-40%" width="140%" height="200%">
+      <feDropShadow dx="0" dy="1.4" stdDeviation="1.4" flood-color="#000000" flood-opacity="0.85"/>
+    </filter>
+
+    <!-- courtroom scene, local coords 0..324 x 0..188 (one TV screen) -->
+    <g id="scene">
+      <rect x="0" y="0" width="324" height="188" fill="url(#wall)"/>
+      <rect x="26" y="14" width="11" height="118" fill="#1a2334" opacity="0.85"/>
+      <rect x="287" y="14" width="11" height="118" fill="#1a2334" opacity="0.85"/>
+      <rect x="0" y="130" width="324" height="3" fill="#1b2434" opacity="0.9"/>
+      <rect x="0" y="133" width="324" height="55" fill="#0e1420" opacity="0.6"/>
+      <!-- judge -->
+      <path d="M126,116 C130,95 146,85 162,85 C178,85 194,95 198,116 Z" fill="#12161f"/>
+      <path d="M155,89 L169,89 L162,101 Z" fill="#eef2f7"/>
+      <circle cx="162" cy="68" r="15" fill="#dcab7e"/>
+      <path d="M147,66 a15,15 0 0 1 30,0 q-4,-7.5 -15,-7.5 q-11,0 -15,7.5 Z" fill="#c3ccd6"/>
+      <!-- bench -->
+      <rect x="30" y="116" width="264" height="12" rx="5" fill="url(#woodLip)"/>
+      <rect x="40" y="128" width="244" height="60" fill="url(#woodFace)"/>
+      <rect x="52" y="138" width="220" height="40" rx="3" fill="none" stroke="#3c2412" stroke-width="2" opacity="0.7"/>
+      <!-- sound block -->
+      <rect x="226" y="108" width="30" height="8" rx="2" fill="#4e3018"/>
+      <ellipse cx="241" cy="108" rx="15" ry="4.5" fill="#8a5a30"/>
+      <ellipse cx="241" cy="108" rx="10" ry="3" fill="#a06a3a"/>
+      <rect x="0" y="0" width="324" height="188" fill="url(#vin)"/>
+    </g>
+
+    <!-- arm + gavel, raised -->
+    <g id="gavel-up">
+      <path d="M190,114 Q206,96 216,80" fill="none" stroke="#12161f" stroke-width="11" stroke-linecap="round"/>
+      <circle cx="217" cy="77" r="5.5" fill="#dcab7e"/>
+      <g transform="rotate(26 217 77)">
+        <rect x="214.5" y="42" width="5" height="34" rx="2.5" fill="#8a5a30"/>
+        <rect x="203" y="31" width="28" height="14" rx="5" fill="#6e4526"/>
+        <rect x="206" y="31" width="3.5" height="14" fill="#8a5a30"/>
+        <rect x="224.5" y="31" width="3.5" height="14" fill="#8a5a30"/>
+      </g>
+    </g>
+
+    <!-- arm + gavel, striking the block -->
+    <g id="gavel-down">
+      <path d="M234,44 a48,48 0 0 1 24,32" fill="none" stroke="#9aa4b2" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7" opacity="0.55"/>
+      <path d="M225,54 a40,40 0 0 1 17,24" fill="none" stroke="#9aa4b2" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 7" opacity="0.35"/>
+      <path d="M190,114 Q210,106 222,98" fill="none" stroke="#12161f" stroke-width="11" stroke-linecap="round"/>
+      <circle cx="224" cy="96" r="5.5" fill="#dcab7e"/>
+      <g transform="rotate(8 224 96)">
+        <rect x="224" y="93.5" width="26" height="5" rx="2.5" fill="#8a5a30"/>
+        <rect x="248" y="82" width="14" height="28" rx="5" fill="#6e4526"/>
+        <rect x="248" y="84" width="14" height="3.5" fill="#8a5a30"/>
+        <rect x="248" y="102.5" width="14" height="3.5" fill="#8a5a30"/>
+      </g>
+      <g stroke="#ffd34d" stroke-width="3" stroke-linecap="round">
+        <path d="M240,98 L231,89"/>
+        <path d="M266,94 L274,85"/>
+        <path d="M270,104 L280,101"/>
+        <path d="M236,107 L227,106"/>
+      </g>
+    </g>
+
+    <!-- TV chassis, local coords 0..340 x 0..210 at panel origin -->
+    <g id="tv">
+      <rect x="0" y="0" width="340" height="204" rx="12" fill="#010409" stroke="#30363d"/>
+      <rect x="48" y="204" width="44" height="6" rx="3" fill="#21262d"/>
+      <rect x="248" y="204" width="44" height="6" rx="3" fill="#21262d"/>
+    </g>
+  </defs>
+
+  <!-- card -->
+  <rect x="0.5" y="0.5" width="1199" height="339" rx="16" fill="#0d1117" stroke="#30363d"/>
+  <line x1="405" y1="26" x2="405" y2="314" stroke="#30363d" stroke-dasharray="4 6"/>
+
+  <!-- zone headers -->
+  <line x1="40" y1="39" x2="126" y2="39" stroke="#f85149" opacity="0.25"/>
+  <line x1="294" y1="39" x2="380" y2="39" stroke="#f85149" opacity="0.25"/>
+  <rect x="126" y="26" width="168" height="26" rx="13" fill="#f85149" fill-opacity="0.1" stroke="#f85149"/>
+  <text x="210" y="43.5" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#f85149">WITHOUT SUBSET</text>
+
+  <line x1="430" y1="39" x2="722" y2="39" stroke="#3fb950" opacity="0.25"/>
+  <line x1="868" y1="39" x2="1160" y2="39" stroke="#3fb950" opacity="0.25"/>
+  <rect x="722" y="26" width="146" height="26" rx="13" fill="#3fb950" fill-opacity="0.1" stroke="#3fb950"/>
+  <text x="795" y="43.5" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#3fb950">WITH SUBSET</text>
+
+  <!-- panel 1: spoiled -->
+  <use href="#tv" x="40" y="68"/>
+  <use href="#scene" x="48" y="76"/>
+  <use href="#gavel-up" x="48" y="76"/>
+  <text x="210" y="250" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff" filter="url(#capShadow)">The defendant was found <tspan fill="#ff7b72">guilty</tspan></text>
+  <text x="210" y="306" text-anchor="middle" font-size="15" fill="#8b949e">&#8220;<tspan fill="#ff7b72">guilty</tspan>&#8221; shows up before it&#8217;s said.</text>
+
+  <!-- panel 2: same moment, caption in step -->
+  <use href="#tv" x="430" y="68"/>
+  <use href="#scene" x="438" y="76"/>
+  <use href="#gavel-up" x="438" y="76"/>
+  <text x="600" y="250" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff" filter="url(#capShadow)">The defendant was found</text>
+  <text x="600" y="306" text-anchor="middle" font-size="15" fill="#8b949e">Same moment &#8212; only what&#8217;s been said.</text>
+
+  <!-- sequence chevrons -->
+  <g fill="none" stroke="#3fb950" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.5">
+    <path d="M786,160 l8,10 l-8,10"/>
+    <path d="M797,160 l8,10 l-8,10"/>
+  </g>
+
+  <!-- panel 3: a beat later, the word lands with the gavel -->
+  <use href="#tv" x="820" y="68"/>
+  <use href="#scene" x="828" y="76"/>
+  <use href="#gavel-down" x="828" y="76"/>
+  <text x="990" y="250" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff" filter="url(#capShadow)">The defendant was found <tspan fill="#56d364">guilty</tspan></text>
+  <text x="990" y="306" text-anchor="middle" font-size="15" fill="#8b949e">A beat later &#8212; &#8220;<tspan fill="#56d364">guilty</tspan>&#8221; lands with the gavel.</text>
+</svg>
